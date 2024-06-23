@@ -12,58 +12,59 @@ const cookieOptions = {
 
 const register = async (req, res, next) => {
   try {
+
     const { fullName, email, password } = req.body;
     if (!fullName || !email || !password) {
-    return next(new AppError('All fields are required', 400));
-  }
-
-  const userExists = await User.findOne({ email });
-
-  if (userExists) {
-    return next(new AppError('Email already exists', 400));
-  }
-
-  const user = await User.create({
-    fullName,
-    email,
-    password,
-    avatar: {
-      public_id: email,
-      secure_url: 'https://res.cloudinary.com/du9jzqlpt/image/upload/v1674647316/avatar_drzgxv.jpg'
+      return next(new AppError('All fields are required', 400));
     }
-  });
 
-  if (!user) {
-    return next(new AppError('User registration failed, please try again'));
-  }
+    const userExists = await User.findOne({ email });
 
-  if(req.file) {
-    try {
-      const result = await cloudinary.v2.uploader.upload( req.file.path, {
-        folder: 'pwbuddy',
-        width: 250,
-        height: 250,
-        gravity: 'faces',
-        crop: 'fill'
-      });
+    if (userExists) {
+      return next(new AppError('Email already exists', 400));
+    }
 
-      if(result){
-        user.avatar.public_id = result.public_id;
-        user.avatar.secure_url = result.secure_url;
+    const user = await User.create({
+      fullName,
+      email,
+      password,
+      avatar: {
+        public_id: email,
+        secure_url: 'https://res.cloudinary.com/du9jzqlpt/image/upload/v1674647316/avatar_drzgxv.jpg'
+      }
+    });
 
-        //remove files
-      
-        fs.rm(`uploads/${req.file.filename}`)
+    if (!user) {
+      return next(new AppError('User registration failed, please try again'));
+    }
+
+    if(req.file) {
+      try {
+        const result = await cloudinary.v2.uploader.upload( req.file.path, {
+          folder: 'pwbuddy',
+          width: 250,
+          height: 250,
+          gravity: 'faces',
+          crop: 'fill'
+        });
+
+        if(result){
+          user.avatar.public_id = result.public_id;
+          user.avatar.secure_url = result.secure_url;
+
+          //remove files
+        
+          fs.rm(`uploads/${req.file.filename}`)
+
+        }
+
+
+      } catch (error) {
+        
+        return next( new AppError(error.message || 'File not uploaded, please try again', 500))
 
       }
-
-
-    } catch (error) {
-      
-      return next( new AppError(error.message || 'File not uploaded, please try again', 500))
-
     }
-  }
 
 
 
@@ -164,7 +165,6 @@ const registerMentor = async (req, res, next) => {
 
 const login = async (req, res, next) => {
 
-
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -194,8 +194,6 @@ const login = async (req, res, next) => {
     return next(new AppError(error.message, 500));
   }
 
-
-
 };
 
 const logout = (req, res , next) => {
@@ -215,68 +213,54 @@ const logout = (req, res , next) => {
   }
 }; 
 
-const getProfile = async(req, res, next) => {
-
-  try {
-    const userId = req.user.id;
-    const user = await User.findById(userId);
-
-    res.status(200).json({
-      success: true,
-      message: 'User profile feched successfully',
-      user
-    });
-
-  } catch (error) {
-    
-    return next(new AppError('Failed to find profile details', 500))
-
-  }
-
-
-}
 
 const forgetPassword = async(req, res, next) => {
 
-  const {email} = req.body;
-
-  if(!email){
-    return next(new AppError('Email is required', 400))
-  }
-
-  const user = await User.findOne({email});
-
-  if(!user){
-    return next(new AppError('Email not registered', 400))
-  }
-
-  const resetToken = await user.generatePasswordResetToken();
-
-  await user.save()
-
-  const resetPasswordURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`
-
-  console.log(resetPasswordURL);
-
-  const subject = 'Reset Password'
-  const message =  `You can reset your password by clicking <a href = ${resetPasswordURL} target ="_blank">Reset your password</a>\nIf the above link does not work for some reason then copy paste this link in new tab ${resetPasswordURL}.\n If you have not requested this , kindly ignore. `;
-
   try {
+    const {email} = req.body;
+
+    if(!email){
+      return next(new AppError('Email is required', 400))
+    }
+
+    const user = await User.findOne({email});
+
+    if(!user){
+      return next(new AppError('Email not registered', 400))
+    }
+
+    const resetToken = await user.generatePasswordResetToken();
+
+    await user.save()
+
+    const resetPasswordURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`
+
+    console.log(resetPasswordURL);
+
+    const subject = 'Reset Password'
+    const message =  `You can reset your password by clicking <a href = ${resetPasswordURL} target ="_blank">Reset your password</a>\nIf the above link does not work for some reason then copy paste this link in new tab ${resetPasswordURL}.\n If you have not requested this , kindly ignore. `;
+
+    try {
     
-    await sendEmail(email, subject, message)
-    res.status(200).json({
-      success: true,
-      message: `Reset password token has been sent to ${email} successfully`
-    })
+      await sendEmail(email, subject, message)
+      res.status(200).json({
+        success: true,
+        message: `Reset password token has been sent to ${email} successfully`
+      })
+  
+    } catch (error) {
+      user.forgotPasswordExpiry = undefined;
+      user.forgotPasswordToken = undefined;
+      
+      await user.save();
+  
+      return next( new AppError(error.message,500))
+    }
 
   } catch (error) {
-    user.forgotPasswordExpiry = undefined;
-    user.forgotPasswordToken = undefined;
-    
-    await user.save();
-
     return next( new AppError(error.message,500))
   }
+  
 
 
 }
@@ -347,13 +331,117 @@ const changePassword = async(req, res, next) => {
 
 }
 
+const getProfile = async(req, res, next) => {
+
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+
+    res.status(200).json({
+      success: true,
+      message: 'User profile feched successfully',
+      user
+    });
+
+  } catch (error) {
+    
+    return next(new AppError('Failed to find profile details', 500))
+
+  }
+
+
+}
+
+const updateUser = async(req, res, next) => {
+
+  try {
+    const {id} = req.params;
+    
+    const user = await User.findById(id);
+
+    if(!user){
+      return next(new AppError('User not found', 400));
+    }
+    
+    
+
+
+    if(user.role === 'MENTOR'){
+
+      const {fullName, email, phone, company, position, experience, qualifications, expertise} = req.body;
+
+      user.fullName = fullName;
+      user.email = email; 
+      user.phone = phone;
+      user.company = company;
+      user.position = position;
+      user.experience = experience;
+      user.qualifications = qualifications; 
+      user.expertise = expertise;
+
+    } else if(user.role === 'STUDENT'){
+
+      const {fullName, email} = req.body;
+      user.fullName = fullName;
+      user.email = email;
+
+    }
+
+    if(req.file) {
+      await cloudinary.v2.uploader.destroy(user.avatar.public_id);
+      try {
+        const result = await cloudinary.v2.uploader.upload( req.file.path, {
+          folder: 'lms',
+          width: 250,
+          height: 250,
+          gravity: 'faces',
+          crop: 'fill'
+        });
+  
+        if(result){
+          user.avatar.public_id = result.public_id;
+          user.avatar.secure_url = result.secure_url;
+  
+          //remove files
+        
+          fs.rm(`uploads/${req.file.filename}`)
+  
+        }
+  
+  
+      } catch (error) {
+        
+        return next( new AppError(error.message || 'File not uploaded, please try again', 500))
+  
+      }
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'User updated successfully',
+    });
+
+  } catch (error) {
+
+    return next(new AppError('Failed to update profile details', 500))
+
+  }
+
+
+
+
+}
+
 export {
   register,
   registerMentor,
   login,
   logout,
-  getProfile,
   forgetPassword,
   resetPassword,
-  changePassword
+  changePassword,
+  getProfile,
+  updateUser
 }
