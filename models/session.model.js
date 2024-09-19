@@ -2,16 +2,13 @@ import { response } from "express";
 import mongoose, { Schema, model } from "mongoose";
 
 const sessionSchema = new Schema({
-
-  studentId: {
-    typee: Schema.Types.ObjectId,
-    ref: 'User',
+  
+  mentorId: {
+    type: String,
     require: true
   },
-  mentorId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    require: true
+  studentId: {
+    typee: String,
   },
   date: {
     type: Date,

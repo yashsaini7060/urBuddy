@@ -2,6 +2,7 @@ import express from 'express';
 import {config} from 'dotenv';
 import cookieParser from 'cookie-parser';
 import userRoutes from './routes/user.routes.js'
+import sessionRoutes from './routes/session.routes.js'
 config();
 
 const app = express();
@@ -19,5 +20,6 @@ app.use('/ping',(req, res) => {
 
 
 app.use('/api/v1/user', userRoutes);
+app.use('/api/v1/session', sessionRoutes);
 
 export default app;

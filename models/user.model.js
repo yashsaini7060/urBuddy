@@ -56,7 +56,7 @@ const userSchema = new Schema({
   ratings: {
     average: {type: Number, default: 0},
     reviews: [{
-      studentId: {type: Schema.Types.ObjectId, ref: 'User'},
+      studentId: {type: String},
       rating: {type: Number},
       feedback: {type: String}
     }]
